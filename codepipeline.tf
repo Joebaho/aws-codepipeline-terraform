@@ -401,12 +401,13 @@ output "pipeline_url" {
 variable "codestar_connection_arn" {
   description = "ARN of the CodeStar connection to GitHub"
   type        = string
+  default = "arn:aws:codeconnections:us-west-2:546310954125:connection/f6cafb9c-ac59-4728-89f4-8e0d8603bd27"
 }
 
 variable "github_repository" {
   description = "GitHub repository in format owner/repo"
   type        = string
-  default     = "Joebaho/aws-codedeploy-terraform"
+  default     = "Joebaho/aws-codepipeline-terraform"
 }
 
 variable "github_branch" {
