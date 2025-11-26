@@ -1,11 +1,44 @@
-# S3 Bucket for CodePipeline artifacts
 resource "aws_s3_bucket" "codepipeline_artifacts" {
   bucket = "codepipeline-artifacts-${var.environment}-${random_id.pipeline_suffix.hex}"
+  force_destroy = true
+
+  tags = {
+    Environment = var.environment
+    Name        = "CodePipeline Artifacts"
+  }
 }
 
-resource "aws_s3_bucket_acl" "codepipeline_artifacts" {
+resource "aws_s3_bucket_ownership_controls" "codepipeline_artifacts" {
   bucket = aws_s3_bucket.codepipeline_artifacts.id
-  acl    = "private"
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "codepipeline_artifacts" {
+  bucket = aws_s3_bucket.codepipeline_artifacts.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "codepipeline_artifacts" {
+  bucket = aws_s3_bucket.codepipeline_artifacts.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "codepipeline_artifacts" {
+  bucket = aws_s3_bucket.codepipeline_artifacts.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
 resource "random_id" "pipeline_suffix" {
@@ -49,12 +82,18 @@ resource "aws_iam_role_policy" "codepipeline_policy" {
           "s3:PutObject",
           "s3:PutObjectAcl"
         ]
-        Effect = "Allow"
+        Effect   = "Allow"
         Resource = [
-          aws_s3_bucket.codepipeline_artifacts.arn,
-          "${aws_s3_bucket.codepipeline_artifacts.arn}/*",
-          aws_s3_bucket.app_artifacts.arn,
-          "${aws_s3_bucket.app_artifacts.arn}/*"
+          "${aws_s3_bucket.codepipeline_artifacts.arn}/*"
+        ]
+      },
+      {
+        Action = [
+          "s3:GetBucketVersioning"
+        ]
+        Effect   = "Allow"
+        Resource = [
+          aws_s3_bucket.codepipeline_artifacts.arn
         ]
       },
       {
@@ -121,7 +160,7 @@ resource "aws_codebuild_project" "infra_build" {
   }
 
   source {
-    type      = "CODEPIPELINE"
+    type = "CODEPIPELINE"
     buildspec = file("${path.module}/buildspec-infra.yml")
   }
 
@@ -149,7 +188,7 @@ resource "aws_codebuild_project" "app_build" {
   }
 
   source {
-    type      = "CODEPIPELINE"
+    type = "CODEPIPELINE"
     buildspec = file("${path.module}/buildspec-app.yml")
   }
 
@@ -203,12 +242,9 @@ resource "aws_iam_role_policy" "codebuild_policy" {
           "s3:GetBucketVersioning",
           "s3:PutObject"
         ]
-        Effect = "Allow"
+        Effect   = "Allow"
         Resource = [
-          aws_s3_bucket.codepipeline_artifacts.arn,
-          "${aws_s3_bucket.codepipeline_artifacts.arn}/*",
-          aws_s3_bucket.app_artifacts.arn,
-          "${aws_s3_bucket.app_artifacts.arn}/*"
+          "${aws_s3_bucket.codepipeline_artifacts.arn}/*"
         ]
       },
       {
@@ -248,16 +284,6 @@ resource "aws_iam_role_policy" "codebuild_policy" {
         ]
         Effect   = "Allow"
         Resource = "*"
-        Condition = {
-          StringEqualsIfExists = {
-            "iam:PassedToService" = [
-              "cloudformation.amazonaws.com",
-              "elasticbeanstalk.amazonaws.com",
-              "ec2.amazonaws.com",
-              "ecs-tasks.amazonaws.com"
-            ]
-          }
-        }
       }
     ]
   })
@@ -340,8 +366,8 @@ resource "aws_codepipeline" "main_pipeline" {
       input_artifacts = ["app_output"]
 
       configuration = {
-        ApplicationName     = aws_codedeploy_app.web_app.name
-        DeploymentGroupName = aws_codedeploy_deployment_group.web_dg.deployment_group_name
+        ApplicationName     = "web-app-${var.environment}"
+        DeploymentGroupName = "web-dg-${var.environment}"
       }
     }
   }
@@ -351,52 +377,10 @@ resource "aws_codepipeline" "main_pipeline" {
   }
 
   depends_on = [
-    aws_codedeploy_app.web_app,
-    aws_codedeploy_deployment_group.web_dg,
     aws_codebuild_project.infra_build,
     aws_codebuild_project.app_build
   ]
 }
-
-# CloudWatch Event to trigger pipeline on code changes
-resource "aws_codepipeline_webhook" "webhook" {
-  name            = "github-webhook-${var.environment}"
-  authentication  = "GITHUB_HMAC"
-  target_pipeline = aws_codepipeline.main_pipeline.name
-  target_action   = "Source"
-
-  authentication_configuration {
-    secret_token = random_id.webhook_secret.hex
-  }
-
-  filter {
-    json_path    = "$.ref"
-    match_equals = "refs/heads/{Branch}"
-  }
-}
-
-resource "random_id" "webhook_secret" {
-  byte_length = 16
-}
-
-# Output the webhook URL for GitHub configuration
-output "webhook_url" {
-  description = "URL to configure in GitHub webhooks"
-  value       = aws_codepipeline_webhook.webhook.url
-  sensitive   = true
-}
-
-output "webhook_secret" {
-  description = "Secret token for GitHub webhook"
-  value       = random_id.webhook_secret.hex
-  sensitive   = true
-}
-
-output "pipeline_url" {
-  description = "URL to access CodePipeline"
-  value       = "https://${var.aws_region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${aws_codepipeline.main_pipeline.name}/view"
-}
-
 # Variables for CodePipeline
 variable "codestar_connection_arn" {
   description = "ARN of the CodeStar connection to GitHub"
