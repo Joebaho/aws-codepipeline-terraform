@@ -1,0 +1,35 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.8
+    commands:
+      - echo "Installing Terraform..."
+      - wget https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
+      - unzip terraform_1.5.7_linux_amd64.zip
+      - mv terraform /usr/local/bin/
+      - terraform --version
+
+  pre_build:
+    commands:
+      - echo "Pre-build phase started..."
+      - cd infrastructure
+      - terraform init
+
+  build:
+    commands:
+      - echo "Build phase started - Planning infrastructure..."
+      - terraform validate
+      - terraform plan -out=tfplan -var="environment=$ENVIRONMENT"
+
+  post_build:
+    commands:
+      - echo "Post-build phase started - Applying infrastructure..."
+      - terraform apply -auto-approve tfplan
+      - echo "Infrastructure deployment completed"
+
+artifacts:
+  files:
+    - '**/*'
+  base-directory: infrastructure
