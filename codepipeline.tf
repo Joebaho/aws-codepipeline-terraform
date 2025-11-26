@@ -1,3 +1,4 @@
+# S3 Bucket for CodePipeline artifacts
 resource "aws_s3_bucket" "codepipeline_artifacts" {
   bucket = "codepipeline-artifacts-${var.environment}-${random_id.pipeline_suffix.hex}"
   force_destroy = true
@@ -136,68 +137,7 @@ resource "aws_iam_role_policy" "codepipeline_policy" {
   })
 }
 
-# CodeBuild Project for Infrastructure
-resource "aws_codebuild_project" "infra_build" {
-  name          = "infra-build-${var.environment}"
-  description   = "Build project for infrastructure deployment"
-  service_role  = aws_iam_role.codebuild_role.arn
-  build_timeout = 60
-
-  artifacts {
-    type = "CODEPIPELINE"
-  }
-
-  environment {
-    compute_type                = "BUILD_GENERAL1_MEDIUM"
-    image                       = "aws/codebuild/amazonlinux2-x86_64-standard:3.0"
-    type                        = "LINUX_CONTAINER"
-    image_pull_credentials_type = "CODEBUILD"
-
-    environment_variable {
-      name  = "ENVIRONMENT"
-      value = var.environment
-    }
-  }
-
-  source {
-    type = "CODEPIPELINE"
-    buildspec = file("${path.module}/buildspec-infra.yml")
-  }
-
-  tags = {
-    Environment = var.environment
-  }
-}
-
-# CodeBuild Project for Application
-resource "aws_codebuild_project" "app_build" {
-  name          = "app-build-${var.environment}"
-  description   = "Build project for application deployment"
-  service_role  = aws_iam_role.codebuild_role.arn
-  build_timeout = 30
-
-  artifacts {
-    type = "CODEPIPELINE"
-  }
-
-  environment {
-    compute_type                = "BUILD_GENERAL1_SMALL"
-    image                       = "aws/codebuild/amazonlinux2-x86_64-standard:3.0"
-    type                        = "LINUX_CONTAINER"
-    image_pull_credentials_type = "CODEBUILD"
-  }
-
-  source {
-    type = "CODEPIPELINE"
-    buildspec = file("${path.module}/buildspec-app.yml")
-  }
-
-  tags = {
-    Environment = var.environment
-  }
-}
-
-# IAM Role for CodeBuild
+# IAM Role for CodeBuild - FIXED WITH EC2 PERMISSIONS
 resource "aws_iam_role" "codebuild_role" {
   name = "CodeBuildRole-${var.environment}"
 
@@ -240,12 +180,23 @@ resource "aws_iam_role_policy" "codebuild_policy" {
           "s3:GetObject",
           "s3:GetObjectVersion",
           "s3:GetBucketVersioning",
-          "s3:PutObject"
+          "s3:PutObject",
+          "s3:ListBucket"
         ]
         Effect   = "Allow"
         Resource = [
-          "${aws_s3_bucket.codepipeline_artifacts.arn}/*"
+          "${aws_s3_bucket.codepipeline_artifacts.arn}/*",
+          aws_s3_bucket.codepipeline_artifacts.arn
         ]
+      },
+      # ADDED EC2 PERMISSIONS FOR TERRAFORM
+      {
+        Action = [
+          "ec2:Describe*",
+          "ec2:Get*"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
       },
       {
         Action = [
@@ -255,14 +206,84 @@ resource "aws_iam_role_policy" "codebuild_policy" {
           "ec2:DeleteNetworkInterface",
           "ec2:DescribeSubnets",
           "ec2:DescribeSecurityGroups",
-          "ec2:DescribeVpcs"
+          "ec2:DescribeVpcs",
+          "ec2:CreateNetworkInterfacePermission"
         ]
         Effect   = "Allow"
         Resource = "*"
       },
+      # ADDED IAM PERMISSIONS FOR TERRAFORM
       {
         Action = [
-          "ec2:CreateNetworkInterfacePermission"
+          "iam:Get*",
+          "iam:List*",
+          "iam:PassRole",
+          "iam:CreateRole",
+          "iam:DeleteRole",
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy",
+          "iam:PutRolePolicy",
+          "iam:DeleteRolePolicy"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      # ADDED AUTOSCALING PERMISSIONS
+      {
+        Action = [
+          "autoscaling:Describe*",
+          "autoscaling:CreateAutoScalingGroup",
+          "autoscaling:DeleteAutoScalingGroup",
+          "autoscaling:UpdateAutoScalingGroup",
+          "autoscaling:CreateLaunchConfiguration",
+          "autoscaling:DeleteLaunchConfiguration"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      # ADDED ELB PERMISSIONS
+      {
+        Action = [
+          "elasticloadbalancing:Describe*",
+          "elasticloadbalancing:CreateLoadBalancer",
+          "elasticloadbalancing:DeleteLoadBalancer",
+          "elasticloadbalancing:CreateTargetGroup",
+          "elasticloadbalancing:DeleteTargetGroup",
+          "elasticloadbalancing:CreateListener",
+          "elasticloadbalancing:DeleteListener"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      # ADDED S3 PERMISSIONS FOR TERRAFORM
+      {
+        Action = [
+          "s3:CreateBucket",
+          "s3:DeleteBucket",
+          "s3:PutBucketPolicy",
+          "s3:DeleteBucketPolicy",
+          "s3:PutEncryptionConfiguration",
+          "s3:PutBucketVersioning"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      # ADDED CODEPIPELINE PERMISSIONS
+      {
+        Action = [
+          "codepipeline:GetPipeline",
+          "codepipeline:ListPipelines"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      # ADDED CODEDEPLOY PERMISSIONS
+      {
+        Action = [
+          "codedeploy:CreateApplication",
+          "codedeploy:DeleteApplication",
+          "codedeploy:CreateDeploymentGroup",
+          "codedeploy:DeleteDeploymentGroup"
         ]
         Effect   = "Allow"
         Resource = "*"
@@ -277,16 +298,86 @@ resource "aws_iam_role_policy" "codebuild_policy" {
         ]
         Effect   = "Allow"
         Resource = "*"
-      },
-      {
-        Action = [
-          "iam:PassRole"
-        ]
-        Effect   = "Allow"
-        Resource = "*"
       }
     ]
   })
+}
+
+# CodeBuild Project for Infrastructure
+resource "aws_codebuild_project" "infra_build" {
+  name          = "infra-build-${var.environment}"
+  description   = "Build project for infrastructure deployment"
+  service_role  = aws_iam_role.codebuild_role.arn
+  build_timeout = 60
+
+  artifacts {
+    type = "CODEPIPELINE"
+  }
+
+  environment {
+    compute_type                = "BUILD_GENERAL1_MEDIUM"
+    image                       = "aws/codebuild/amazonlinux2-x86_64-standard:3.0"
+    type                        = "LINUX_CONTAINER"
+    image_pull_credentials_type = "CODEBUILD"
+
+    environment_variable {
+      name  = "ENVIRONMENT"
+      value = var.environment
+    }
+    environment_variable {
+      name  = "AWS_REGION"
+      value = var.aws_region
+    }
+    environment_variable {
+      name  = "CODESTAR_CONNECTION_ARN"
+      value = var.codestar_connection_arn
+    }
+    environment_variable {
+      name  = "GITHUB_REPOSITORY"
+      value = var.github_repository
+    }
+    environment_variable {
+      name  = "GITHUB_BRANCH"
+      value = var.github_branch
+    }
+  }
+
+  source {
+    type = "CODEPIPELINE"
+    buildspec = file("${path.module}/buildspec-infra.yml")
+  }
+
+  tags = {
+    Environment = var.environment
+  }
+}
+
+# CodeBuild Project for Application
+resource "aws_codebuild_project" "app_build" {
+  name          = "app-build-${var.environment}"
+  description   = "Build project for application deployment"
+  service_role  = aws_iam_role.codebuild_role.arn
+  build_timeout = 30
+
+  artifacts {
+    type = "CODEPIPELINE"
+  }
+
+  environment {
+    compute_type                = "BUILD_GENERAL1_SMALL"
+    image                       = "aws/codebuild/amazonlinux2-x86_64-standard:3.0"
+    type                        = "LINUX_CONTAINER"
+    image_pull_credentials_type = "CODEBUILD"
+  }
+
+  source {
+    type = "CODEPIPELINE"
+    buildspec = file("${path.module}/buildspec-app.yml")
+  }
+
+  tags = {
+    Environment = var.environment
+  }
 }
 
 # CodePipeline
@@ -380,6 +471,45 @@ resource "aws_codepipeline" "main_pipeline" {
     aws_codebuild_project.infra_build,
     aws_codebuild_project.app_build
   ]
+}
+
+# CloudWatch Event to trigger pipeline on code changes
+resource "aws_codepipeline_webhook" "webhook" {
+  name            = "github-webhook-${var.environment}"
+  authentication  = "GITHUB_HMAC"
+  target_pipeline = aws_codepipeline.main_pipeline.name
+  target_action   = "Source"
+
+  authentication_configuration {
+    secret_token = random_id.webhook_secret.hex
+  }
+
+  filter {
+    json_path    = "$.ref"
+    match_equals = "refs/heads/{Branch}"
+  }
+}
+
+resource "random_id" "webhook_secret" {
+  byte_length = 16
+}
+
+# Output the webhook URL for GitHub configuration
+output "webhook_url" {
+  description = "URL to configure in GitHub webhooks"
+  value       = aws_codepipeline_webhook.webhook.url
+  sensitive   = true
+}
+
+output "webhook_secret" {
+  description = "Secret token for GitHub webhook"
+  value       = random_id.webhook_secret.hex
+  sensitive   = true
+}
+
+output "pipeline_url" {
+  description = "URL to access CodePipeline"
+  value       = "https://${var.aws_region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${aws_codepipeline.main_pipeline.name}/view"
 }
 # Variables for CodePipeline
 variable "codestar_connection_arn" {
