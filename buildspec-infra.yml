@@ -32,4 +32,5 @@ phases:
 artifacts:
   files:
     - '**/*'
-  base-directory: infrastructure
+  base-directory: .
+  discard-paths: no
