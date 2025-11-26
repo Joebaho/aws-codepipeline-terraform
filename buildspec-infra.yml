@@ -15,6 +15,7 @@ phases:
     commands:
       - echo "Pre-build phase started..."
       - terraform init
+      - terraform fmt
 
   build:
     commands:
