@@ -30,13 +30,40 @@ sudo cat > /var/www/html/index.html << EOF
 <!DOCTYPE html>
 <html>
 <head>
-    <title>CodeDeploy Project</title>
+    <title>CodeDeploy Project - CodePipeline</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { background: #232f3e; color: white; padding: 20px; border-radius: 5px; }
+        .content { background: #f5f5f5; padding: 20px; border-radius: 5px; margin-top: 20px; }
+        .success { color: #008000; }
+        .info { color: #0066cc; }
+    </style>
 </head>
 <body>
-    <h1>Welcome to AWS CodeDeploy Project</h1>
-    <p>This application was deployed using AWS CodeDeploy via CodePipeline.</p>
-    <p>Environment: ${ENVIRONMENT}</p>
-    <p>Version: Initial Deployment</p>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 AWS CodePipeline Deployment</h1>
+        </div>
+        <div class="content">
+            <h2 class="success">✅ Deployment Successful!</h2>
+            <p>This application was deployed using:</p>
+            <ul>
+                <li><strong>AWS CodePipeline</strong> - CI/CD Pipeline</li>
+                <li><strong>AWS CodeBuild</strong> - Build Service</li>
+                <li><strong>AWS CodeDeploy</strong> - Deployment Service</li>
+                <li><strong>Terraform</strong> - Infrastructure as Code</li>
+            </ul>
+            <p class="info">Deployment triggered automatically on code changes to the GitHub repository.</p>
+            <hr>
+            <p><strong>Environment:</strong> ${ENVIRONMENT}</p>
+            <p><strong>Deployment Time:</strong> <span id="datetime"></span></p>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('datetime').textContent = new Date().toLocaleString();
+    </script>
 </body>
 </html>
 EOF
