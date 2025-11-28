@@ -1,6 +1,6 @@
 # S3 Bucket for CodePipeline artifacts
 resource "aws_s3_bucket" "codepipeline_artifacts" {
-  bucket = "codepipeline-artifacts-${var.environment}-${random_id.pipeline_suffix.hex}"
+  bucket        = "codepipeline-artifacts-${var.environment}-${random_id.pipeline_suffix.hex}"
   force_destroy = true
 
   tags = {
@@ -83,7 +83,7 @@ resource "aws_iam_role_policy" "codepipeline_policy" {
           "s3:PutObject",
           "s3:PutObjectAcl"
         ]
-        Effect   = "Allow"
+        Effect = "Allow"
         Resource = [
           "${aws_s3_bucket.codepipeline_artifacts.arn}/*"
         ]
@@ -92,7 +92,7 @@ resource "aws_iam_role_policy" "codepipeline_policy" {
         Action = [
           "s3:GetBucketVersioning"
         ]
-        Effect   = "Allow"
+        Effect = "Allow"
         Resource = [
           aws_s3_bucket.codepipeline_artifacts.arn
         ]
@@ -183,7 +183,7 @@ resource "aws_iam_role_policy" "codebuild_policy" {
           "s3:PutObject",
           "s3:ListBucket"
         ]
-        Effect   = "Allow"
+        Effect = "Allow"
         Resource = [
           "${aws_s3_bucket.codepipeline_artifacts.arn}/*",
           aws_s3_bucket.codepipeline_artifacts.arn
@@ -343,7 +343,7 @@ resource "aws_codebuild_project" "infra_build" {
   }
 
   source {
-    type = "CODEPIPELINE"
+    type      = "CODEPIPELINE"
     buildspec = file("${path.module}/buildspec-infra.yml")
   }
 
@@ -371,7 +371,7 @@ resource "aws_codebuild_project" "app_build" {
   }
 
   source {
-    type = "CODEPIPELINE"
+    type      = "CODEPIPELINE"
     buildspec = file("${path.module}/buildspec-app.yml")
   }
 
@@ -515,7 +515,7 @@ output "pipeline_url" {
 variable "codestar_connection_arn" {
   description = "ARN of the CodeStar connection to GitHub"
   type        = string
-  default = "arn:aws:codeconnections:us-west-2:546310954125:connection/f6cafb9c-ac59-4728-89f4-8e0d8603bd27"
+  default     = "arn:aws:codeconnections:us-west-2:546310954125:connection/f6cafb9c-ac59-4728-89f4-8e0d8603bd27"
 }
 
 variable "github_repository" {
