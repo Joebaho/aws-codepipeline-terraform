@@ -539,9 +539,3 @@ variable "github_branch" {
   type        = string
   default     = "main"
 }
-
-variable "github_branch" {
-  description = "GitHub branch to monitor"
-  type        = string
-  default     = "main"
-}
