@@ -1,7 +1,7 @@
 
 # IAM Roles
 resource "aws_iam_role" "ec2_codedeploy_role" {
-  name = "EC2CodeDeployRole-${var.environment}"
+  name = "EC2RoleCodeDeploy-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -32,12 +32,12 @@ resource "aws_iam_role_policy_attachment" "ec2_s3_read" {
 }
 
 resource "aws_iam_instance_profile" "ec2_codedeploy_profile" {
-  name = "EC2CodeDeployProfile-${var.environment}"
+  name = "EC2ProfileCodeDeployProfile-${var.environment}"
   role = aws_iam_role.ec2_codedeploy_role.name
 }
 
 resource "aws_iam_role" "codedeploy_role" {
-  name = "CodeDeployServiceRole-${var.environment}"
+  name = "EC2CodeDeployServiceRole-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
