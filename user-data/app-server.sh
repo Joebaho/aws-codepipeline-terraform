@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
 
-#variables
-AWS_REGION=${AWS_REGION:-us-west-2}
-ENVIRONMENT=${ENVIRONMENT:-Testing}
+# Get the region from instance metadata
+AWS_REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+
 
 # Update and install dependencies
 sudo yum -y update
@@ -16,6 +16,8 @@ cd /home/ec2-user
 wget https://aws-codedeploy-${AWS_REGION}.s3.${AWS_REGION}.amazonaws.com/latest/install
 chmod +x ./install
 sudo ./install auto
+sudo systemctl start codedeploy-agent
+sudo systemctl enable codedeploy-agent
 
 # Install AWS CLI
 sudo yum -y install python3-pip
@@ -25,9 +27,15 @@ sudo pip3 install awscli
 sudo systemctl start httpd
 sudo systemctl enable httpd
 
+# Wait for Apache to be fully ready
+sleep 10
+
 # Create web directory
 sudo mkdir -p /var/www/html
 sudo chown -R apache:apache /var/www/html
+
+# Optional: Create a simple health check file if needed
+echo "Healthy" | sudo tee /var/www/html/health.html
 
 # Create a simple index.html file
 sudo cat > /var/www/html/index.html << EOF

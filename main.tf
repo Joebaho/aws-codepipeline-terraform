@@ -69,10 +69,10 @@ resource "aws_security_group" "web_sg" {
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
   }
 
   ingress {
@@ -91,6 +91,39 @@ resource "aws_security_group" "web_sg" {
 
   tags = {
     Name        = "web-sg-${var.environment}"
+    Environment = var.environment
+  }
+}
+
+# Security Group for ALB
+resource "aws_security_group" "alb_sg" {
+  name        = "alb-sg-${var.environment}"
+  description = "Security group for ELB"
+  vpc_id      = data.aws_vpc.default.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "alb-sg-${var.environment}"
     Environment = var.environment
   }
 }
@@ -131,7 +164,7 @@ resource "aws_lb" "web_alb" {
   name               = "web-alb-${var.environment}"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [aws_security_group.web_sg.id]
+  security_groups    = [aws_security_group.alb_sg.id]
   subnets            = data.aws_subnets.default.ids
 
   tags = {
@@ -147,13 +180,14 @@ resource "aws_lb_target_group" "web_tg" {
   vpc_id   = data.aws_vpc.default.id
 
   health_check {
-    path                = "/index.html"
+    path                = "/application/templates/index.html"
     port                = "traffic-port"
     protocol            = "HTTP"
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-    timeout             = 3
-    interval            = 30
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    timeout             = 10
+    interval            = 15
+    matcher             = "200"
   }
 
   tags = {
@@ -219,7 +253,7 @@ resource "aws_codedeploy_deployment_group" "web_dg" {
   autoscaling_groups = [aws_autoscaling_group.web_asg.name]
 
   deployment_style {
-    deployment_option = "WITHOUT_TRAFFIC_CONTROL"
+    deployment_option = "WITH_TRAFFIC_CONTROL"
     deployment_type   = "IN_PLACE"
   }
 
