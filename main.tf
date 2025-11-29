@@ -262,7 +262,7 @@ resource "aws_codedeploy_deployment_group" "web_dg" {
     type  = "KEY_AND_VALUE"
     value = var.environment
   }
-   # Add this load_balancer_info block
+  # Add this load_balancer_info block
   load_balancer_info {
     target_group_info {
       name = aws_lb_target_group.web_tg.name
