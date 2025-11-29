@@ -137,7 +137,7 @@ resource "aws_iam_role_policy" "codepipeline_policy" {
   })
 }
 
-# IAM Role for CodeBuild - FIXED WITH EC2 PERMISSIONS
+# IAM Role for CodeBuild - COMPLETELY FIXED WITH ALL REQUIRED PERMISSIONS
 resource "aws_iam_role" "codebuild_role" {
   name = "CodeBuildRole-${var.environment}"
 
@@ -166,6 +166,7 @@ resource "aws_iam_role_policy" "codebuild_policy" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      # Basic CodeBuild permissions
       {
         Action = [
           "logs:CreateLogGroup",
@@ -189,86 +190,99 @@ resource "aws_iam_role_policy" "codebuild_policy" {
           aws_s3_bucket.codepipeline_artifacts.arn
         ]
       },
-      # ADDED EC2 PERMISSIONS FOR TERRAFORM
+      # CRITICAL: Full S3 permissions for Terraform
       {
         Action = [
-          "ec2:Describe*",
-          "ec2:Get*"
+          "s3:*"
         ]
         Effect   = "Allow"
         Resource = "*"
       },
+      # CRITICAL: Full IAM permissions for Terraform
       {
         Action = [
-          "ec2:CreateNetworkInterface",
-          "ec2:DescribeDhcpOptions",
-          "ec2:DescribeNetworkInterfaces",
-          "ec2:DeleteNetworkInterface",
-          "ec2:DescribeSubnets",
-          "ec2:DescribeSecurityGroups",
-          "ec2:DescribeVpcs",
-          "ec2:CreateNetworkInterfacePermission"
+          "iam:*"
         ]
         Effect   = "Allow"
         Resource = "*"
       },
-      # ADDED IAM PERMISSIONS FOR TERRAFORM
+      # CRITICAL: Full EC2 permissions for Terraform
       {
         Action = [
-          "iam:Get*",
-          "iam:List*",
-          "iam:PassRole",
-          "iam:CreateRole",
-          "iam:DeleteRole",
-          "iam:AttachRolePolicy",
-          "iam:DetachRolePolicy",
-          "iam:PutRolePolicy",
-          "iam:DeleteRolePolicy"
+          "ec2:*"
         ]
         Effect   = "Allow"
         Resource = "*"
       },
-      # ADDED AUTOSCALING PERMISSIONS
+      # CRITICAL: Full CodeDeploy permissions
       {
         Action = [
-          "autoscaling:Describe*",
-          "autoscaling:CreateAutoScalingGroup",
-          "autoscaling:DeleteAutoScalingGroup",
-          "autoscaling:UpdateAutoScalingGroup",
-          "autoscaling:CreateLaunchConfiguration",
-          "autoscaling:DeleteLaunchConfiguration"
+          "codedeploy:*"
         ]
         Effect   = "Allow"
         Resource = "*"
       },
-      # ADDED ELB PERMISSIONS
+      # CRITICAL: Full ELB/ALB permissions
       {
         Action = [
-          "elasticloadbalancing:Describe*",
-          "elasticloadbalancing:CreateLoadBalancer",
-          "elasticloadbalancing:DeleteLoadBalancer",
-          "elasticloadbalancing:CreateTargetGroup",
-          "elasticloadbalancing:DeleteTargetGroup",
-          "elasticloadbalancing:CreateListener",
-          "elasticloadbalancing:DeleteListener"
+          "elasticloadbalancing:*"
         ]
         Effect   = "Allow"
         Resource = "*"
       },
-      # ADDED S3 PERMISSIONS FOR TERRAFORM
+      # CRITICAL: Full Auto Scaling permissions
       {
         Action = [
-          "s3:CreateBucket",
-          "s3:DeleteBucket",
-          "s3:PutBucketPolicy",
-          "s3:DeleteBucketPolicy",
-          "s3:PutEncryptionConfiguration",
-          "s3:PutBucketVersioning"
+          "autoscaling:*"
         ]
         Effect   = "Allow"
         Resource = "*"
       },
-      # ADDED CODEPIPELINE PERMISSIONS
+      # CRITICAL: CloudWatch permissions
+      {
+        Action = [
+          "cloudwatch:*"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      # CRITICAL: Lambda permissions (if needed)
+      {
+        Action = [
+          "lambda:*"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      # CRITICAL: DynamoDB permissions for state locking
+      {
+        Action = [
+          "dynamodb:*"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      # CRITICAL: KMS permissions for encryption
+      {
+        Action = [
+          "kms:*"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      # CodeBuild specific permissions
+      {
+        Action = [
+          "codebuild:CreateReportGroup",
+          "codebuild:CreateReport",
+          "codebuild:UpdateReport",
+          "codebuild:BatchPutTestCases",
+          "codebuild:BatchPutCodeCoverages"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+      },
+      # CodePipeline permissions
       {
         Action = [
           "codepipeline:GetPipeline",
@@ -277,24 +291,10 @@ resource "aws_iam_role_policy" "codebuild_policy" {
         Effect   = "Allow"
         Resource = "*"
       },
-      # ADDED CODEDEPLOY PERMISSIONS
+      # SSM permissions (for systems manager)
       {
         Action = [
-          "codedeploy:CreateApplication",
-          "codedeploy:DeleteApplication",
-          "codedeploy:CreateDeploymentGroup",
-          "codedeploy:DeleteDeploymentGroup"
-        ]
-        Effect   = "Allow"
-        Resource = "*"
-      },
-      {
-        Action = [
-          "codebuild:CreateReportGroup",
-          "codebuild:CreateReport",
-          "codebuild:UpdateReport",
-          "codebuild:BatchPutTestCases",
-          "codebuild:BatchPutCodeCoverages"
+          "ssm:*"
         ]
         Effect   = "Allow"
         Resource = "*"
@@ -339,6 +339,15 @@ resource "aws_codebuild_project" "infra_build" {
     environment_variable {
       name  = "GITHUB_BRANCH"
       value = var.github_branch
+    }
+    # CRITICAL: Add Terraform specific variables
+    environment_variable {
+      name  = "TF_IN_AUTOMATION"
+      value = "true"
+    }
+    environment_variable {
+      name  = "TF_INPUT"
+      value = "false"
     }
   }
 
@@ -511,6 +520,7 @@ output "pipeline_url" {
   description = "URL to access CodePipeline"
   value       = "https://${var.aws_region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${aws_codepipeline.main_pipeline.name}/view"
 }
+
 # Variables for CodePipeline
 variable "codestar_connection_arn" {
   description = "ARN of the CodeStar connection to GitHub"
@@ -522,6 +532,12 @@ variable "github_repository" {
   description = "GitHub repository in format owner/repo"
   type        = string
   default     = "Joebaho/aws-codepipeline-terraform"
+}
+
+variable "github_branch" {
+  description = "GitHub branch to monitor"
+  type        = string
+  default     = "main"
 }
 
 variable "github_branch" {
