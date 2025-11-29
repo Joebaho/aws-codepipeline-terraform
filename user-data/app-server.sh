@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+#variables
+AWS_REGION=${AWS_REGION:-us-west-2}
+ENVIRONMENT=${ENVIRONMENT:-Testing}
+
 # Update and install dependencies
 sudo yum -y update
 sudo yum -y install ruby
@@ -56,7 +60,8 @@ sudo cat > /var/www/html/index.html << EOF
             </ul>
             <p class="info">Deployment triggered automatically on code changes to the GitHub repository.</p>
             <hr>
-            <p><strong>Environment:</strong> ${ENVIRONMENT}</p>
+            <p><strong>Region:</strong> us-west-2 </p>
+            <p><strong>Environment:</strong> Testing </p>
             <p><strong>Deployment Time:</strong> <span id="datetime"></span></p>
         </div>
     </div>
